@@ -1,5 +1,6 @@
 $m = "master"
 $d = "develop"
+$currentFeature = ""
 
 function Set-Branch {
     [cmdletbinding()]
@@ -71,6 +72,7 @@ function Update-BranchFrom {
                 git merge $branch
             }
         }
+        return $branch
     }
 }
 
@@ -100,7 +102,8 @@ function Start-Feature {
         Write-Host "Starting new feature $name" -ForegroundColor Green
         $name = $name -replace "feature/", ""
         git checkout -q -b "feature/$name" $d
-        return $name
+        $script:currentFeature = "feature/$name"
+        return "feature/$name"
     }
 }
 
@@ -181,5 +184,37 @@ function Complete-Release {
     }
 }
 
+function Test-Merge {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]$sourceBranch
+    )
+    process {
+        $processStartInfo = New-Object System.Diagnostics.ProcessStartInfo
+        $processStartInfo.WorkingDirectory = $PSScriptRoot
+        $processStartInfo.FileName = "git"
+        $processStartInfo.RedirectStandardError = $true
+        $processStartInfo.RedirectStandardOutput = $true
+        $processStartInfo.UseShellExecute = $false
+        $processStartInfo.Arguments = "merge $sourceBranch --no-commit --no-ff"
+        
+        $process = New-Object System.Diagnostics.Process
+        $process.StartInfo = $processStartInfo
+        $process.Start() | Out-Null
+        $process.WaitForExit()
+        
+        $cleanMerge = ($process.ExitCode -eq 0)
+        
+        $processStartInfo.Arguments = "merge --abort"
+        
+        $process = New-Object System.Diagnostics.Process
+        $process.StartInfo = $processStartInfo
+        $process.Start() | Out-Null
+        $process.WaitForExit()
+        
+        return $cleanMerge
+    }
+}
+
 Export-ModuleMember -Variable *
-Export-ModuleMember -Function Complete-HotFix,Complete-Release,New-Tag,Remove-Branch,Reset-Repo,Resume-Rebase,Set-Branch,Start-Feature,Start-HotFix,Start-Release,Test-Rebase,Update-BranchFrom
+Export-ModuleMember -Function Complete-HotFix, Complete-Release, New-Tag, Remove-Branch, Reset-Repo, Resume-Rebase, Set-Branch, Start-Feature, Start-HotFix, Start-Release, Test-Merge, Update-BranchFrom
